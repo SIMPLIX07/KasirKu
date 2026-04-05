@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "970621030399",
+    "project_id": "kasirku-1b6d6",
+    "storage_bucket": "kasirku-1b6d6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:970621030399:android:8a1a09799e45290ccce1ca",
+        "android_client_info": {
+          "package_name": "com.example.umkm"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "970621030399-n9gbbiluebqcpg2itua8c2iahacvf8j5.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.umkm",
+            "certificate_hash": "5caf786ae2e545aad422191b88bb398f89cf523a"
+          }
+        },
+        {
+          "client_id": "970621030399-bd6qc53rm4i5418d2us19ijqmubkdvlm.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCsrf9q3snjiBQKYftM0VFPyXbIBUmTv88"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "970621030399-bd6qc53rm4i5418d2us19ijqmubkdvlm.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
