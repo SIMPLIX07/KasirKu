@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'auth_gate.dart';
+import 'sales_category_page.dart';
 
 class BusinessNamePage extends StatefulWidget {
   const BusinessNamePage({super.key});
@@ -100,7 +100,7 @@ class _BusinessNamePageState extends State<BusinessNamePage> {
       }
 
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute<void>(builder: (_) => const AuthGate()),
+        MaterialPageRoute<void>(builder: (_) => const SalesCategoryPage()),
         (_) => false,
       );
     } on PlatformException catch (e) {
