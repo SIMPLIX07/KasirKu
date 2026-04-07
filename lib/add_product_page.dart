@@ -36,7 +36,6 @@ class AddProductPage extends StatefulWidget {
 class _AddProductPageState extends State<AddProductPage> {
   final _nameController = TextEditingController();
   final _priceController = TextEditingController();
-  final _tagController = TextEditingController();
   late Future<List<String>> _categoryCategoryTagsFuture;
   final List<String> _tags = <String>[];
   bool _isSaving = false;
@@ -77,7 +76,6 @@ class _AddProductPageState extends State<AddProductPage> {
   void dispose() {
     _nameController.dispose();
     _priceController.dispose();
-    _tagController.dispose();
     super.dispose();
   }
 
@@ -131,151 +129,161 @@ class _AddProductPageState extends State<AddProductPage> {
   }
 
   Future<void> _addTag() async {
-    if (_tags.length >= _maxTags) {
-      _showMessage('Maksimal $_maxTags tag per produk.');
-      return;
-    }
+    try {
+      if (_tags.length >= _maxTags) {
+        _showMessage('Maksimal $_maxTags tag per produk.');
+        return;
+      }
 
-    final categoryTags = await _fetchCategoryTags();
-    if (!mounted) {
-      return;
-    }
+      final categoryTags = await _fetchCategoryTags();
+      if (!mounted) {
+        return;
+      }
 
-    final existingLower = _tags.map((tag) => tag.toLowerCase()).toSet();
-    final availableTags = categoryTags
-        .where((tag) => !existingLower.contains(tag.toLowerCase()))
-        .toList();
+      final existingLower = _tags.map((tag) => tag.toLowerCase()).toSet();
+      final availableTags = categoryTags
+          .where((tag) => !existingLower.contains(tag.toLowerCase()))
+          .toList();
 
-    final controller = _tagController;
-    controller.clear();
-    String? errorText;
+      String enteredTag = '';
+      String? dialogError;
 
-    final value = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Tambah Tag'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Pilih tag yang sudah ada atau tambah tag baru.',
-                      style: TextStyle(fontSize: 13, color: Color(0xFF6F7875)),
-                    ),
-                    if (availableTags.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        height: 42,
-                        child: ListView(
+      final value = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) {
+          return StatefulBuilder(
+            builder: (context, setDialogState) {
+              String normalize(String raw) =>
+                  raw.trim().replaceAll(RegExp(r'\s+'), ' ');
+
+              void submitFromInput() {
+                final normalized = normalize(enteredTag);
+                if (normalized.isEmpty) {
+                  if (!dialogContext.mounted) return;
+                  setDialogState(() {
+                    dialogError = 'Tag tidak boleh kosong.';
+                  });
+                  return;
+                }
+                if (!dialogContext.mounted) return;
+                Navigator.of(dialogContext).pop(normalized);
+              }
+
+              return AlertDialog(
+                title: const Text('Tambah Tag'),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Pilih tag yang sudah ada atau tambah tag baru.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF6F7875),
+                        ),
+                      ),
+                      if (availableTags.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
-                          children: availableTags
-                              .map(
-                                (tag) => Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: ActionChip(
-                                    label: Text(tag),
-                                    onPressed: () =>
-                                        Navigator.of(dialogContext).pop(tag),
-                                    shape: const StadiumBorder(),
-                                    side: const BorderSide(
-                                      color: Color(0xFFD0D9D5),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
+                          child: Row(
+                            children: availableTags
+                                .map(
+                                  (tag) => Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: ActionChip(
+                                      label: Text(tag),
+                                      onPressed: () {
+                                        if (!dialogContext.mounted) return;
+                                        Navigator.of(dialogContext).pop(tag);
+                                      },
+                                      shape: const StadiumBorder(),
+                                      side: const BorderSide(
+                                        color: Color(0xFFD0D9D5),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 6,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              )
-                              .toList(),
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      TextField(
+                        autofocus: true,
+                        maxLength: 20,
+                        textInputAction: TextInputAction.done,
+                        onChanged: (text) {
+                          enteredTag = text;
+                          if (dialogError != null) {
+                            setDialogState(() {
+                              dialogError = null;
+                            });
+                          }
+                        },
+                        onSubmitted: (_) => submitFromInput(),
+                        decoration: InputDecoration(
+                          hintText: 'Contoh: Gurih',
+                          counterText: '',
+                          errorText: dialogError,
                         ),
                       ),
                     ],
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: controller,
-                      autofocus: true,
-                      maxLength: 20,
-                      textInputAction: TextInputAction.done,
-                      onSubmitted: (_) {
-                        final normalized = controller.text.trim().replaceAll(
-                          RegExp(r'\s+'),
-                          ' ',
-                        );
-                        if (normalized.isEmpty) {
-                          setDialogState(() {
-                            errorText = 'Tag tidak boleh kosong.';
-                          });
-                          return;
-                        }
-                        Navigator.of(dialogContext).pop(normalized);
-                      },
-                      decoration: InputDecoration(
-                        hintText: 'Contoh: Gurih',
-                        counterText: '',
-                        errorText: errorText,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Batal'),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    final normalized = controller.text.trim().replaceAll(
-                      RegExp(r'\s+'),
-                      ' ',
-                    );
-                    if (normalized.isEmpty) {
-                      setDialogState(() {
-                        errorText = 'Tag tidak boleh kosong.';
-                      });
-                      return;
-                    }
-                    Navigator.of(dialogContext).pop(normalized);
-                  },
-                  child: const Text('Tambah'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      if (!dialogContext.mounted) return;
+                      Navigator.of(dialogContext).pop();
+                    },
+                    child: const Text('Batal'),
+                  ),
+                  FilledButton(
+                    onPressed: submitFromInput,
+                    child: const Text('Tambah'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
 
-    if (!mounted || value == null) {
-      return;
+      if (!mounted || value == null) {
+        return;
+      }
+
+      final normalizedTag = value.trim().replaceAll(RegExp(r'\s+'), ' ');
+      if (normalizedTag.isEmpty) {
+        return;
+      }
+
+      final alreadyExists = _tags.any(
+        (tag) => tag.toLowerCase() == normalizedTag.toLowerCase(),
+      );
+      if (alreadyExists) {
+        _showMessage('Tag sudah ada.');
+        return;
+      }
+
+      if (_tags.length >= _maxTags) {
+        _showMessage('Maksimal $_maxTags tag per produk.');
+        return;
+      }
+
+      setState(() {
+        _tags.add(normalizedTag);
+      });
+    } catch (e) {
+      debugPrint('[ADD_TAG_ERROR] $e');
+      _showMessage('Gagal menambahkan tag. Coba lagi.');
     }
-
-    final normalizedTag = value.trim().replaceAll(RegExp(r'\s+'), ' ');
-    if (normalizedTag.isEmpty) {
-      return;
-    }
-
-    final alreadyExists = _tags.any(
-      (tag) => tag.toLowerCase() == normalizedTag.toLowerCase(),
-    );
-    if (alreadyExists) {
-      _showMessage('Tag sudah ada.');
-      return;
-    }
-
-    if (_tags.length >= _maxTags) {
-      _showMessage('Maksimal $_maxTags tag per produk.');
-      return;
-    }
-
-    setState(() {
-      _tags.add(normalizedTag);
-    });
   }
 
   Future<void> _saveAndFinish() async {
