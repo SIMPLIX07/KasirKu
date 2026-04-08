@@ -1,7 +1,11 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'sales_category_page.dart';
 
@@ -16,6 +20,9 @@ class _BusinessNamePageState extends State<BusinessNamePage> {
   static const int _maxBusinessNameLength = 30;
   final _businessNameController = TextEditingController();
   bool _isSaving = false;
+  bool _hasQris = false;
+  File? _selectedQrisImage;
+  String? _existingQrisImageUrl;
 
   @override
   void dispose() {
@@ -69,8 +76,28 @@ class _BusinessNamePageState extends State<BusinessNamePage> {
       return;
     }
 
+    if (_hasQris &&
+        _selectedQrisImage == null &&
+        (_existingQrisImageUrl == null || _existingQrisImageUrl!.isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Silakan upload gambar QRIS terlebih dahulu.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
     try {
+      String? qrisImageUrl = _hasQris ? _existingQrisImageUrl : null;
+      if (_hasQris && _selectedQrisImage != null) {
+        qrisImageUrl = await _uploadQrisImageToStorage(
+          imageFile: _selectedQrisImage!,
+          userId: user.uid,
+        );
+      }
+
       final userRef = FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid);
@@ -79,6 +106,8 @@ class _BusinessNamePageState extends State<BusinessNamePage> {
         'uid': user.uid,
         'email': user.email,
         'businessName': businessName,
+        'qrisEnabled': _hasQris,
+        'qrisImageUrl': qrisImageUrl ?? '',
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
@@ -159,6 +188,40 @@ class _BusinessNamePageState extends State<BusinessNamePage> {
     }
   }
 
+  Future<void> _pickQrisImage() async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1200,
+      imageQuality: 85,
+    );
+
+    if (image == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _selectedQrisImage = File(image.path);
+      _existingQrisImageUrl = null;
+    });
+  }
+
+  Future<String?> _uploadQrisImageToStorage({
+    required File imageFile,
+    required String userId,
+  }) async {
+    try {
+      final ref = FirebaseStorage.instance.ref().child(
+        'business/$userId/qris.jpg',
+      );
+      await ref.putFile(imageFile);
+      return await ref.getDownloadURL();
+    } catch (e) {
+      debugPrint('[QRIS_UPLOAD_ERROR] $e');
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     const bgColor = Color(0xFFF3F5F4);
@@ -212,98 +275,244 @@ class _BusinessNamePageState extends State<BusinessNamePage> {
                 ),
                 const Divider(height: 1, color: lineColor),
                 Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(26, 18, 26, 12),
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 34),
-                        Container(
-                          width: 110,
-                          height: 110,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFE8ECEA),
-                            shape: BoxShape.circle,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(26, 18, 26, 12),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: constraints.maxHeight,
                           ),
-                          child: const Icon(
-                            Icons.storefront_rounded,
-                            size: 48,
-                            color: primary,
-                          ),
-                        ),
-                        const SizedBox(height: 30),
-                        const Text(
-                          'Nama Usaha Anda',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w800,
-                            color: textMain,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Beri tahu kami nama bisnis Anda agar kami bisa menyesuaikan pengalaman Anda.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: textSecondary,
-                            height: 1.45,
-                          ),
-                        ),
-                        const SizedBox(height: 42),
-                        const Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'NAMA BISNIS',
-                            style: TextStyle(
-                              color: primary,
-                              fontSize: 12,
-                              letterSpacing: 2.6,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFCFDFC),
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: TextField(
-                            controller: _businessNameController,
-                            textInputAction: TextInputAction.done,
-                            maxLength: _maxBusinessNameLength,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              color: textMain,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'Contoh: Kedai Kopi Minimalis',
-                              hintStyle: const TextStyle(
-                                fontSize: 16,
-                                color: Color(0xFFB4BAB7),
+                          child: Column(
+                            children: [
+                              const SizedBox(height: 34),
+                              Container(
+                                width: 110,
+                                height: 110,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFE8ECEA),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.storefront_rounded,
+                                  size: 48,
+                                  color: primary,
+                                ),
                               ),
-                              border: InputBorder.none,
-                              counterText:
-                                  '${_businessNameController.text.trim().replaceAll(RegExp(r'\s+'), ' ').length}/$_maxBusinessNameLength',
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 22,
-                                vertical: 22,
+                              const SizedBox(height: 30),
+                              const Text(
+                                'Nama Usaha Anda',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w800,
+                                  color: textMain,
+                                ),
                               ),
-                            ),
-                            onChanged: (_) => setState(() {}),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'Beri tahu kami nama bisnis Anda agar kami bisa menyesuaikan pengalaman Anda.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: textSecondary,
+                                  height: 1.45,
+                                ),
+                              ),
+                              const SizedBox(height: 42),
+                              const Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  'NAMA BISNIS',
+                                  style: TextStyle(
+                                    color: primary,
+                                    fontSize: 12,
+                                    letterSpacing: 2.6,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFCFDFC),
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                                child: TextField(
+                                  controller: _businessNameController,
+                                  textInputAction: TextInputAction.done,
+                                  maxLength: _maxBusinessNameLength,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: textMain,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  decoration: InputDecoration(
+                                    hintText: 'Contoh: Kedai Kopi Minimalis',
+                                    hintStyle: const TextStyle(
+                                      fontSize: 16,
+                                      color: Color(0xFFB4BAB7),
+                                    ),
+                                    border: InputBorder.none,
+                                    counterText:
+                                        '${_businessNameController.text.trim().replaceAll(RegExp(r'\s+'), ' ').length}/$_maxBusinessNameLength',
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 22,
+                                      vertical: 22,
+                                    ),
+                                  ),
+                                  onChanged: (_) => setState(() {}),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 18,
+                                ),
+                                height: 2,
+                                color: lineColor,
+                              ),
+                              const SizedBox(height: 26),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Expanded(
+                                    child: Text(
+                                      'MENYEDIAKAN PEMBAYARAN QRIS?',
+                                      style: TextStyle(
+                                        color: primary,
+                                        fontSize: 12,
+                                        letterSpacing: 2.2,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  Switch(
+                                    value: _hasQris,
+                                    onChanged: _isSaving
+                                        ? null
+                                        : (value) {
+                                            setState(() {
+                                              _hasQris = value;
+                                              if (!value) {
+                                                _selectedQrisImage = null;
+                                              }
+                                            });
+                                          },
+                                    activeColor: primary,
+                                  ),
+                                ],
+                              ),
+                              AnimatedCrossFade(
+                                firstChild: const SizedBox.shrink(),
+                                secondChild: Column(
+                                  children: [
+                                    const SizedBox(height: 14),
+                                    Center(
+                                      child: GestureDetector(
+                                        onTap: _isSaving
+                                            ? null
+                                            : _pickQrisImage,
+                                        child: ConstrainedBox(
+                                          constraints: const BoxConstraints(
+                                            maxWidth: 340,
+                                          ),
+                                          child: AspectRatio(
+                                            aspectRatio: 1,
+                                            child: DecoratedBox(
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFF1F4F2),
+                                                borderRadius:
+                                                    BorderRadius.circular(26),
+                                                border: Border.all(
+                                                  color: const Color(
+                                                    0xFFBFC8C5,
+                                                  ),
+                                                  width: 1.4,
+                                                ),
+                                              ),
+                                              child: _selectedQrisImage == null
+                                                  ? (_existingQrisImageUrl !=
+                                                                null &&
+                                                            _existingQrisImageUrl!
+                                                                .isNotEmpty
+                                                        ? ClipRRect(
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  26,
+                                                                ),
+                                                            child: Image.network(
+                                                              _existingQrisImageUrl!,
+                                                              fit: BoxFit.cover,
+                                                            ),
+                                                          )
+                                                        : const Column(
+                                                            mainAxisAlignment:
+                                                                MainAxisAlignment
+                                                                    .center,
+                                                            children: [
+                                                              Icon(
+                                                                Icons.qr_code_2,
+                                                                size: 54,
+                                                                color: primary,
+                                                              ),
+                                                              SizedBox(
+                                                                height: 12,
+                                                              ),
+                                                              Text(
+                                                                'Upload Gambar QRIS',
+                                                                style: TextStyle(
+                                                                  fontSize: 18,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w700,
+                                                                  color:
+                                                                      textMain,
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ))
+                                                  : ClipRRect(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            26,
+                                                          ),
+                                                      child: Image.file(
+                                                        _selectedQrisImage!,
+                                                        fit: BoxFit.cover,
+                                                      ),
+                                                    ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    const Center(
+                                      child: Text(
+                                        'Gambar QRIS akan dipakai saat pembayaran QRIS.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: textSecondary,
+                                          fontSize: 13,
+                                          height: 1.35,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                crossFadeState: _hasQris
+                                    ? CrossFadeState.showSecond
+                                    : CrossFadeState.showFirst,
+                                duration: const Duration(milliseconds: 180),
+                              ),
+                              const SizedBox(height: 24),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 18),
-                          height: 2,
-                          color: lineColor,
-                        ),
-                        const Spacer(),
-                      ],
-                    ),
+                      );
+                    },
                   ),
                 ),
               ],

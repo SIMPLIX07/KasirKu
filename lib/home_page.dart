@@ -4,6 +4,22 @@ import 'package:flutter/material.dart';
 
 import 'order_summary_page.dart';
 
+IconData _getProductIconFromName(String name) {
+  switch (name) {
+    case 'coffee':
+      return Icons.coffee;
+    case 'icecream':
+      return Icons.icecream;
+    case 'local_pizza':
+      return Icons.local_pizza;
+    case 'bakery_dining':
+      return Icons.bakery_dining;
+    case 'fastfood':
+    default:
+      return Icons.fastfood;
+  }
+}
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -14,6 +30,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   late Future<_HomeData> _homeDataFuture;
   final Map<String, int> _quantities = <String, int>{};
+  int _newOrderCount = 0;
 
   @override
   void initState() {
@@ -24,11 +41,26 @@ class _HomePageState extends State<HomePage> {
   Future<_HomeData> _loadHomeData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      return const _HomeData(categories: <_CategorySectionData>[]);
+      return const _HomeData(
+        categories: <_CategorySectionData>[],
+        persistedOrderCount: 0,
+      );
     }
 
     try {
       final firestore = FirebaseFirestore.instance;
+      int persistedOrderCount = 0;
+      try {
+        final transactionsSnapshot = await firestore
+            .collection('users')
+            .doc(user.uid)
+            .collection('transactions')
+            .get();
+        persistedOrderCount = transactionsSnapshot.docs.length;
+      } catch (e) {
+        debugPrint('[ORDER_COUNT_LOAD_ERROR] $e');
+      }
+
       final categoriesSnapshot = await firestore
           .collection('users')
           .doc(user.uid)
@@ -129,10 +161,16 @@ class _HomePageState extends State<HomePage> {
         ...extras.values,
       ].where((section) => section.items.isNotEmpty).toList();
 
-      return _HomeData(categories: categories);
+      return _HomeData(
+        categories: categories,
+        persistedOrderCount: persistedOrderCount,
+      );
     } catch (e) {
       debugPrint('[HOME_LOAD_ERROR] $e');
-      return const _HomeData(categories: <_CategorySectionData>[]);
+      return const _HomeData(
+        categories: <_CategorySectionData>[],
+        persistedOrderCount: 0,
+      );
     }
   }
 
@@ -253,9 +291,13 @@ class _HomePageState extends State<HomePage> {
 
         final data =
             snapshot.data ??
-            const _HomeData(categories: <_CategorySectionData>[]);
+            const _HomeData(
+              categories: <_CategorySectionData>[],
+              persistedOrderCount: 0,
+            );
         final totalAmount = _totalAmountFor(data.categories);
         final selectedItems = _selectedOrderItems(data.categories);
+        final orderNumber = data.persistedOrderCount + _newOrderCount;
 
         return Scaffold(
           backgroundColor: const Color(0xFFF6F7F7),
@@ -336,7 +378,7 @@ class _HomePageState extends State<HomePage> {
                                     textColor: const Color(0xFF3A3F3D),
                                   ),
                                   _BadgePill(
-                                    label: 'ORDER #882',
+                                    label: 'ORDER #$orderNumber',
                                     backgroundColor: const Color(0xFFDDF5E6),
                                     textColor: const Color(0xFF206B55),
                                     bold: true,
@@ -424,20 +466,27 @@ class _HomePageState extends State<HomePage> {
                       child: ElevatedButton.icon(
                         onPressed: selectedItems.isEmpty
                             ? null
-                            : () {
-                                final transactionId =
-                                    (DateTime.now().millisecondsSinceEpoch %
-                                                90000 +
-                                            10000)
-                                        .toString();
-                                Navigator.of(context).push(
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => OrderSummaryPage(
-                                      transactionId: transactionId,
-                                      items: selectedItems,
-                                    ),
-                                  ),
-                                );
+                            : () async {
+                                final transactionId = DateTime.now()
+                                    .millisecondsSinceEpoch
+                                    .toString();
+                                final transactionCompleted =
+                                    await Navigator.of(context).push<bool>(
+                                      MaterialPageRoute<bool>(
+                                        builder: (_) => OrderSummaryPage(
+                                          transactionId: transactionId,
+                                          items: selectedItems,
+                                        ),
+                                      ),
+                                    );
+
+                                if (transactionCompleted == true) {
+                                  if (!mounted) return;
+                                  setState(() {
+                                    _newOrderCount += 1;
+                                    _quantities.clear();
+                                  });
+                                }
                               },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.transparent,
@@ -464,14 +513,6 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
               ),
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: _BottomNavBar(
-                  onLogout: () async {
-                    await FirebaseAuth.instance.signOut();
-                  },
-                ),
-              ),
             ],
           ),
         );
@@ -481,9 +522,13 @@ class _HomePageState extends State<HomePage> {
 }
 
 class _HomeData {
-  const _HomeData({required this.categories});
+  const _HomeData({
+    required this.categories,
+    required this.persistedOrderCount,
+  });
 
   final List<_CategorySectionData> categories;
+  final int persistedOrderCount;
 }
 
 class _CategorySectionData {
@@ -554,6 +599,208 @@ class _CategorySection extends StatelessWidget {
     return buffer.toString();
   }
 
+  void _showViewAllSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.85,
+              decoration: const BoxDecoration(
+                color: Color(0xFFF6F7F7),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+              ),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF111111),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.of(sheetContext).pop(),
+                          icon: const Icon(
+                            Icons.close,
+                            color: Color(0xFF111111),
+                            size: 28,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1, color: Color(0xFFE4E8E6)),
+                  Expanded(
+                    child: GridView.builder(
+                      padding: const EdgeInsets.all(24),
+                      gridDelegate:
+                          const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 120,
+                            mainAxisSpacing: 16,
+                            crossAxisSpacing: 16,
+                            mainAxisExtent: 206,
+                          ),
+                      itemCount: items.length,
+                      itemBuilder: (context, index) {
+                        final item = items[index];
+                        final quantity = quantities[item.id] ?? 0;
+                        final hasQuantity = quantity > 0;
+
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(18),
+                          onTap: () {
+                            onAdd(item);
+                            setSheetState(() {});
+                          },
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              AspectRatio(
+                                aspectRatio: 1,
+                                child: Stack(
+                                  children: [
+                                    Positioned.fill(
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(16),
+                                        child: Container(
+                                          color: const Color(0xFFE4E8E6),
+                                          child: (item.imageUrl.isNotEmpty)
+                                              ? Image.network(
+                                                  item.imageUrl,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (_, __, ___) =>
+                                                      Center(
+                                                        child: Icon(
+                                                          _getProductIconFromName(
+                                                            item.iconName,
+                                                          ),
+                                                          size: 38,
+                                                          color: const Color(
+                                                            0xFF8AA39A,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                )
+                                              : Center(
+                                                  child: Icon(
+                                                    _getProductIconFromName(
+                                                      item.iconName,
+                                                    ),
+                                                    size: 38,
+                                                    color: const Color(
+                                                      0xFF8AA39A,
+                                                    ),
+                                                  ),
+                                                ),
+                                        ),
+                                      ),
+                                    ),
+                                    if (hasQuantity)
+                                      Positioned(
+                                        top: 10,
+                                        left: 10,
+                                        child: GestureDetector(
+                                          onTap: () {
+                                            onRemove(item);
+                                            setSheetState(() {});
+                                          },
+                                          child: Container(
+                                            width: 24,
+                                            height: 24,
+                                            decoration: const BoxDecoration(
+                                              color: Color(0xFFE94B4B),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Icon(
+                                              Icons.remove,
+                                              size: 14,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    Positioned(
+                                      top: 10,
+                                      right: 10,
+                                      child: AnimatedSwitcher(
+                                        duration: const Duration(
+                                          milliseconds: 150,
+                                        ),
+                                        child: hasQuantity
+                                            ? Container(
+                                                key: ValueKey<int>(quantity),
+                                                width: 24,
+                                                height: 24,
+                                                decoration: const BoxDecoration(
+                                                  color: Color(0xFF3E8E75),
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                alignment: Alignment.center,
+                                                child: Text(
+                                                  '$quantity',
+                                                  style: const TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              )
+                                            : const SizedBox.shrink(
+                                                key: ValueKey<String>('empty'),
+                                              ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                item.name,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF2B2B2B),
+                                  height: 1.15,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Rp ${_formatCurrency(item.price)}',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF206B55),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -568,6 +815,8 @@ class _CategorySection extends StatelessWidget {
               children: [
                 Text(
                   title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
@@ -575,7 +824,7 @@ class _CategorySection extends StatelessWidget {
                   ),
                 ),
                 TextButton(
-                  onPressed: () {},
+                  onPressed: () => _showViewAllSheet(context),
                   child: const Text(
                     'View All',
                     style: TextStyle(
@@ -622,9 +871,9 @@ class _CategorySection extends StatelessWidget {
                                         fit: BoxFit.cover,
                                         errorBuilder: (_, __, ___) => Center(
                                           child: Icon(
-                                            item.iconName.isEmpty
-                                                ? Icons.fastfood
-                                                : Icons.fastfood,
+                                            _getProductIconFromName(
+                                              item.iconName,
+                                            ),
                                             size: 44,
                                             color: const Color(0xFF8AA39A),
                                           ),
@@ -632,9 +881,9 @@ class _CategorySection extends StatelessWidget {
                                       )
                                     : Center(
                                         child: Icon(
-                                          item.iconName.isEmpty
-                                              ? Icons.fastfood
-                                              : Icons.fastfood,
+                                          _getProductIconFromName(
+                                            item.iconName,
+                                          ),
                                           size: 44,
                                           color: const Color(0xFF8AA39A),
                                         ),
@@ -699,9 +948,10 @@ class _CategorySection extends StatelessWidget {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            fontSize: 14,
+                            fontSize: 12,
                             fontWeight: FontWeight.w500,
                             color: Color(0xFF2B2B2B),
+                            height: 1.1,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -756,100 +1006,6 @@ class _BadgePill extends StatelessWidget {
           fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
           color: textColor,
           letterSpacing: uppercase ? 0.8 : 0,
-        ),
-      ),
-    );
-  }
-}
-
-class _BottomNavBar extends StatelessWidget {
-  const _BottomNavBar({required this.onLogout});
-
-  final Future<void> Function() onLogout;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFFF8FAF8),
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 24,
-            offset: Offset(0, -6),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: const [
-            _NavItem(
-              icon: Icons.calculate,
-              label: 'REGISTER',
-              active: true,
-              onTap: _noop,
-            ),
-            _NavItem(
-              icon: Icons.history,
-              label: 'HISTORY',
-              active: false,
-              onTap: _noop,
-            ),
-            _NavItem(
-              icon: Icons.settings,
-              label: 'SETTINGS',
-              active: false,
-              onTap: _noop,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-void _noop() {}
-
-class _NavItem extends StatelessWidget {
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.active,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = active ? const Color(0xFF206B55) : const Color(0xFF9AA3A0);
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.3,
-                color: color,
-              ),
-            ),
-          ],
         ),
       ),
     );

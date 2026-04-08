@@ -2,7 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-import 'home_page.dart';
+import 'main_dashboard.dart';
 import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -55,7 +55,7 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(builder: (_) => const HomePage()),
+        MaterialPageRoute<void>(builder: (_) => const MainDashboard()),
       );
     } on FirebaseAuthException catch (e) {
       _showMessage(_friendlyError(e));
@@ -89,7 +89,7 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(builder: (_) => const HomePage()),
+        MaterialPageRoute<void>(builder: (_) => const MainDashboard()),
       );
     } on FirebaseAuthException catch (e) {
       _showMessage(_friendlyError(e));
