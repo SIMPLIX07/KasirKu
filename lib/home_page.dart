@@ -21,7 +21,9 @@ IconData _getProductIconFromName(String name) {
 }
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({super.key, this.refreshToken = 0});
+
+  final int refreshToken;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -30,12 +32,56 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   late Future<_HomeData> _homeDataFuture;
   final Map<String, int> _quantities = <String, int>{};
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   int _newOrderCount = 0;
+
+  void _openProfileDrawer() {
+    _scaffoldKey.currentState?.openEndDrawer();
+  }
+
+  Future<void> _confirmLogout() async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Make sure?'),
+          content: const Text('Apakah Anda yakin ingin log out?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF206B55),
+              ),
+              child: const Text('Log out'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldLogout == true) {
+      await FirebaseAuth.instance.signOut();
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     _homeDataFuture = _loadHomeData();
+  }
+
+  @override
+  void didUpdateWidget(covariant HomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshToken != widget.refreshToken) {
+      setState(() {
+        _homeDataFuture = _loadHomeData();
+      });
+    }
   }
 
   Future<_HomeData> _loadHomeData() async {
@@ -132,6 +178,11 @@ class _HomePageState extends State<HomePage> {
           iconName: (data['icon'] as String? ?? 'fastfood').trim(),
           categoryId: categoryId,
           categoryName: categoryName.isEmpty ? 'Kategori' : categoryName,
+          tags: (data['tags'] as List<dynamic>? ?? const <dynamic>[])
+              .map((tag) => tag.toString().trim())
+              .where((tag) => tag.isNotEmpty)
+              .toSet()
+              .toList(),
         );
 
         _CategorySectionData? section = categoryById[categoryId];
@@ -300,7 +351,40 @@ class _HomePageState extends State<HomePage> {
         final orderNumber = data.persistedOrderCount + _newOrderCount;
 
         return Scaffold(
+          key: _scaffoldKey,
           backgroundColor: const Color(0xFFF6F7F7),
+          endDrawer: Drawer(
+            child: SafeArea(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(20, 16, 20, 12),
+                    child: Text(
+                      'Profile',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF206B55),
+                      ),
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.logout, color: Color(0xFF206B55)),
+                    title: const Text(
+                      'Log out',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    onTap: () async {
+                      Navigator.of(context).pop();
+                      await _confirmLogout();
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
           body: Stack(
             children: [
               CustomScrollView(
@@ -329,13 +413,16 @@ class _HomePageState extends State<HomePage> {
                                 CircleAvatar(
                                   radius: 20,
                                   backgroundColor: const Color(0xFFE8F2EE),
-                                  child: GestureDetector(
-                                    onLongPress: () async {
-                                      await FirebaseAuth.instance.signOut();
-                                    },
-                                    child: const Icon(
-                                      Icons.people,
-                                      color: Color(0xFF206B55),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(20),
+                                    onTap: _openProfileDrawer,
+                                    child: const SizedBox(
+                                      width: 40,
+                                      height: 40,
+                                      child: Icon(
+                                        Icons.people,
+                                        color: Color(0xFF206B55),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -556,6 +643,7 @@ class _MenuItemData {
     required this.iconName,
     required this.categoryId,
     required this.categoryName,
+    required this.tags,
   });
 
   final String id;
@@ -565,6 +653,7 @@ class _MenuItemData {
   final String iconName;
   final String categoryId;
   final String categoryName;
+  final List<String> tags;
 }
 
 class _CategorySection extends StatelessWidget {
@@ -599,7 +688,36 @@ class _CategorySection extends StatelessWidget {
     return buffer.toString();
   }
 
+  List<String> _collectTags() {
+    final seen = <String>{};
+    final tags = <String>[];
+
+    for (final item in items) {
+      for (final tag in item.tags) {
+        final normalized = tag.trim();
+        if (normalized.isEmpty) {
+          continue;
+        }
+        final key = normalized.toLowerCase();
+        if (seen.add(key)) {
+          tags.add(normalized);
+        }
+      }
+    }
+
+    tags.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return tags;
+  }
+
+  bool _hasTag(_MenuItemData item, String selectedTag) {
+    final target = selectedTag.toLowerCase();
+    return item.tags.any((tag) => tag.toLowerCase() == target);
+  }
+
   void _showViewAllSheet(BuildContext context) {
+    final availableTags = _collectTags();
+    String? selectedTag;
+
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -642,152 +760,227 @@ class _CategorySection extends StatelessWidget {
                     ),
                   ),
                   const Divider(height: 1, color: Color(0xFFE4E8E6)),
+                  if (availableTags.isNotEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _TagFilterChip(
+                              label: 'Semua',
+                              selected: selectedTag == null,
+                              onTap: () =>
+                                  setSheetState(() => selectedTag = null),
+                            ),
+                            ...availableTags.map(
+                              (tag) => Padding(
+                                padding: const EdgeInsets.only(left: 8),
+                                child: _TagFilterChip(
+                                  label: tag,
+                                  selected:
+                                      selectedTag?.toLowerCase() ==
+                                      tag.toLowerCase(),
+                                  onTap: () => setSheetState(
+                                    () => selectedTag =
+                                        selectedTag?.toLowerCase() ==
+                                            tag.toLowerCase()
+                                        ? null
+                                        : tag,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   Expanded(
-                    child: GridView.builder(
-                      padding: const EdgeInsets.all(24),
-                      gridDelegate:
-                          const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 120,
-                            mainAxisSpacing: 16,
-                            crossAxisSpacing: 16,
-                            mainAxisExtent: 206,
-                          ),
-                      itemCount: items.length,
-                      itemBuilder: (context, index) {
-                        final item = items[index];
-                        final quantity = quantities[item.id] ?? 0;
-                        final hasQuantity = quantity > 0;
+                    child: Builder(
+                      builder: (context) {
+                        final filteredItems = selectedTag == null
+                            ? items
+                            : items
+                                  .where((item) => _hasTag(item, selectedTag!))
+                                  .toList();
 
-                        return InkWell(
-                          borderRadius: BorderRadius.circular(18),
-                          onTap: () {
-                            onAdd(item);
-                            setSheetState(() {});
-                          },
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              AspectRatio(
-                                aspectRatio: 1,
-                                child: Stack(
-                                  children: [
-                                    Positioned.fill(
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(16),
-                                        child: Container(
-                                          color: const Color(0xFFE4E8E6),
-                                          child: (item.imageUrl.isNotEmpty)
-                                              ? Image.network(
-                                                  item.imageUrl,
-                                                  fit: BoxFit.cover,
-                                                  errorBuilder: (_, __, ___) =>
-                                                      Center(
-                                                        child: Icon(
-                                                          _getProductIconFromName(
-                                                            item.iconName,
+                        if (filteredItems.isEmpty) {
+                          return const Center(
+                            child: Text(
+                              'Tidak ada produk untuk tag ini.',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF6B7471),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          );
+                        }
+
+                        return GridView.builder(
+                          padding: const EdgeInsets.all(24),
+                          gridDelegate:
+                              const SliverGridDelegateWithMaxCrossAxisExtent(
+                                maxCrossAxisExtent: 120,
+                                mainAxisSpacing: 16,
+                                crossAxisSpacing: 16,
+                                mainAxisExtent: 206,
+                              ),
+                          itemCount: filteredItems.length,
+                          itemBuilder: (context, index) {
+                            final item = filteredItems[index];
+                            final quantity = quantities[item.id] ?? 0;
+                            final hasQuantity = quantity > 0;
+
+                            return InkWell(
+                              borderRadius: BorderRadius.circular(18),
+                              onTap: () {
+                                onAdd(item);
+                                setSheetState(() {});
+                              },
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  AspectRatio(
+                                    aspectRatio: 1,
+                                    child: Stack(
+                                      children: [
+                                        Positioned.fill(
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
+                                            child: Container(
+                                              color: const Color(0xFFE4E8E6),
+                                              child: (item.imageUrl.isNotEmpty)
+                                                  ? Image.network(
+                                                      item.imageUrl,
+                                                      fit: BoxFit.cover,
+                                                      errorBuilder:
+                                                          (
+                                                            _,
+                                                            __,
+                                                            ___,
+                                                          ) => Center(
+                                                            child: Icon(
+                                                              _getProductIconFromName(
+                                                                item.iconName,
+                                                              ),
+                                                              size: 38,
+                                                              color:
+                                                                  const Color(
+                                                                    0xFF8AA39A,
+                                                                  ),
+                                                            ),
                                                           ),
-                                                          size: 38,
-                                                          color: const Color(
-                                                            0xFF8AA39A,
-                                                          ),
+                                                    )
+                                                  : Center(
+                                                      child: Icon(
+                                                        _getProductIconFromName(
+                                                          item.iconName,
+                                                        ),
+                                                        size: 38,
+                                                        color: const Color(
+                                                          0xFF8AA39A,
                                                         ),
                                                       ),
-                                                )
-                                              : Center(
-                                                  child: Icon(
-                                                    _getProductIconFromName(
-                                                      item.iconName,
                                                     ),
-                                                    size: 38,
-                                                    color: const Color(
-                                                      0xFF8AA39A,
-                                                    ),
-                                                  ),
-                                                ),
-                                        ),
-                                      ),
-                                    ),
-                                    if (hasQuantity)
-                                      Positioned(
-                                        top: 10,
-                                        left: 10,
-                                        child: GestureDetector(
-                                          onTap: () {
-                                            onRemove(item);
-                                            setSheetState(() {});
-                                          },
-                                          child: Container(
-                                            width: 24,
-                                            height: 24,
-                                            decoration: const BoxDecoration(
-                                              color: Color(0xFFE94B4B),
-                                              shape: BoxShape.circle,
-                                            ),
-                                            child: const Icon(
-                                              Icons.remove,
-                                              size: 14,
-                                              color: Colors.white,
                                             ),
                                           ),
                                         ),
-                                      ),
-                                    Positioned(
-                                      top: 10,
-                                      right: 10,
-                                      child: AnimatedSwitcher(
-                                        duration: const Duration(
-                                          milliseconds: 150,
-                                        ),
-                                        child: hasQuantity
-                                            ? Container(
-                                                key: ValueKey<int>(quantity),
+                                        if (hasQuantity)
+                                          Positioned(
+                                            top: 10,
+                                            left: 10,
+                                            child: GestureDetector(
+                                              onTap: () {
+                                                onRemove(item);
+                                                setSheetState(() {});
+                                              },
+                                              child: Container(
                                                 width: 24,
                                                 height: 24,
                                                 decoration: const BoxDecoration(
-                                                  color: Color(0xFF3E8E75),
+                                                  color: Color(0xFFE94B4B),
                                                   shape: BoxShape.circle,
                                                 ),
-                                                alignment: Alignment.center,
-                                                child: Text(
-                                                  '$quantity',
-                                                  style: const TextStyle(
-                                                    fontSize: 11,
-                                                    fontWeight: FontWeight.w700,
-                                                    color: Colors.white,
-                                                  ),
+                                                child: const Icon(
+                                                  Icons.remove,
+                                                  size: 14,
+                                                  color: Colors.white,
                                                 ),
-                                              )
-                                            : const SizedBox.shrink(
-                                                key: ValueKey<String>('empty'),
                                               ),
-                                      ),
+                                            ),
+                                          ),
+                                        Positioned(
+                                          top: 10,
+                                          right: 10,
+                                          child: AnimatedSwitcher(
+                                            duration: const Duration(
+                                              milliseconds: 150,
+                                            ),
+                                            child: hasQuantity
+                                                ? Container(
+                                                    key: ValueKey<int>(
+                                                      quantity,
+                                                    ),
+                                                    width: 24,
+                                                    height: 24,
+                                                    decoration:
+                                                        const BoxDecoration(
+                                                          color: Color(
+                                                            0xFF3E8E75,
+                                                          ),
+                                                          shape:
+                                                              BoxShape.circle,
+                                                        ),
+                                                    alignment: Alignment.center,
+                                                    child: Text(
+                                                      '$quantity',
+                                                      style: const TextStyle(
+                                                        fontSize: 11,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        color: Colors.white,
+                                                      ),
+                                                    ),
+                                                  )
+                                                : const SizedBox.shrink(
+                                                    key: ValueKey<String>(
+                                                      'empty',
+                                                    ),
+                                                  ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    item.name,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFF2B2B2B),
+                                      height: 1.15,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Rp ${_formatCurrency(item.price)}',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF206B55),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                item.name,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  color: Color(0xFF2B2B2B),
-                                  height: 1.15,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Rp ${_formatCurrency(item.price)}',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  color: Color(0xFF206B55),
-                                ),
-                              ),
-                            ],
-                          ),
+                            );
+                          },
                         );
                       },
                     ),
@@ -1006,6 +1199,45 @@ class _BadgePill extends StatelessWidget {
           fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
           color: textColor,
           letterSpacing: uppercase ? 0.8 : 0,
+        ),
+      ),
+    );
+  }
+}
+
+class _TagFilterChip extends StatelessWidget {
+  const _TagFilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF206B55) : const Color(0xFFE8EFEC),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected ? const Color(0xFF206B55) : const Color(0xFFD8E3DE),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: selected ? Colors.white : const Color(0xFF2A4D41),
+          ),
         ),
       ),
     );

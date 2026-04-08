@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'home_page.dart';
 import 'history_page.dart';
+import 'settings_page.dart';
 
 class MainDashboard extends StatefulWidget {
   const MainDashboard({super.key});
@@ -12,12 +13,7 @@ class MainDashboard extends StatefulWidget {
 
 class _MainDashboardState extends State<MainDashboard> {
   int _currentIndex = 0;
-
-  final List<Widget> _pages = const [
-    HomePage(),
-    HistoryPage(),
-    Scaffold(body: Center(child: Text('Settings Coming Soon'))),
-  ];
+  int _homeRefreshToken = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -25,13 +21,23 @@ class _MainDashboardState extends State<MainDashboard> {
       backgroundColor: const Color(0xFFF8FAF8),
       body: Stack(
         children: [
-          IndexedStack(index: _currentIndex, children: _pages),
+          IndexedStack(
+            index: _currentIndex,
+            children: [
+              HomePage(refreshToken: _homeRefreshToken),
+              const HistoryPage(),
+              const SettingsPage(),
+            ],
+          ),
           Align(
             alignment: Alignment.bottomCenter,
             child: _BottomNavBar(
               currentIndex: _currentIndex,
               onTap: (index) {
                 setState(() {
+                  if (index == 0 && _currentIndex != 0) {
+                    _homeRefreshToken++;
+                  }
                   _currentIndex = index;
                 });
               },
