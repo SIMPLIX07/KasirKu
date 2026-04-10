@@ -954,26 +954,22 @@ class _CategorySection extends StatelessWidget {
                                             child: Container(
                                               color: const Color(0xFFE4E8E6),
                                               child: (item.imageUrl.isNotEmpty)
-                                                  ? Image.network(
+                                                  ? buildStoredImage(
                                                       item.imageUrl,
                                                       fit: BoxFit.cover,
-                                                      errorBuilder:
-                                                          (
-                                                            _,
-                                                            __,
-                                                            ___,
-                                                          ) => Center(
-                                                            child: Icon(
-                                                              _getProductIconFromName(
-                                                                item.iconName,
-                                                              ),
-                                                              size: 38,
-                                                              color:
-                                                                  const Color(
-                                                                    0xFF8AA39A,
-                                                                  ),
-                                                            ),
+                                                      width: double.infinity,
+                                                      height: double.infinity,
+                                                      fallback: () => Center(
+                                                        child: Icon(
+                                                          _getProductIconFromName(
+                                                            item.iconName,
                                                           ),
+                                                          size: 38,
+                                                          color: const Color(
+                                                            0xFF8AA39A,
+                                                          ),
+                                                        ),
+                                                      ),
                                                     )
                                                   : Center(
                                                       child: Icon(
@@ -1162,6 +1158,8 @@ class _CategorySection extends StatelessWidget {
                                     ? buildStoredImage(
                                         item.imageUrl,
                                         fit: BoxFit.cover,
+                                        width: double.infinity,
+                                        height: double.infinity,
                                         fallback: () => Center(
                                           child: Icon(
                                             _getProductIconFromName(

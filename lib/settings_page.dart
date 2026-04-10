@@ -1080,7 +1080,7 @@ class _CategoryAccordion extends StatelessWidget {
                     crossAxisCount: crossAxisCount,
                     mainAxisSpacing: 10,
                     crossAxisSpacing: 10,
-                    childAspectRatio: 0.88,
+                    childAspectRatio: 0.6,
                   ),
                   itemBuilder: (context, index) {
                     if (index == products.length) {
@@ -1132,7 +1132,8 @@ class _ProductCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
+          AspectRatio(
+            aspectRatio: 1,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: Container(

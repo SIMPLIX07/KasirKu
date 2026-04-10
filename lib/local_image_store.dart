@@ -132,6 +132,8 @@ Widget buildStoredImage(
   String source, {
   required Widget Function() fallback,
   BoxFit fit = BoxFit.cover,
+  double? width,
+  double? height,
 }) {
   final normalizedSource = source.trim();
   if (normalizedSource.isEmpty) {
@@ -142,13 +144,33 @@ Widget buildStoredImage(
     return Image.network(
       normalizedSource,
       fit: fit,
-      errorBuilder: (_, __, ___) => fallback(),
+      width: width,
+      height: height,
+      errorBuilder: (context, error, stackTrace) {
+        debugPrint(
+          '[LOCAL_IMAGE_STORE] Error loading network image $normalizedSource: $error',
+        );
+        return fallback();
+      },
     );
   }
 
   final file = File(normalizedSource);
   if (file.existsSync()) {
-    return Image.file(file, fit: fit, errorBuilder: (_, __, ___) => fallback());
+    return Image.file(
+      file,
+      fit: fit,
+      width: width,
+      height: height,
+      errorBuilder: (context, error, stackTrace) {
+        debugPrint(
+          '[LOCAL_IMAGE_STORE] Error loading file $normalizedSource: $error',
+        );
+        return fallback();
+      },
+    );
+  } else {
+    debugPrint('[LOCAL_IMAGE_STORE] File does not exist: $normalizedSource');
   }
 
   return fallback();
