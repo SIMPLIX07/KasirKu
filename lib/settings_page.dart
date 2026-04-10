@@ -2,11 +2,11 @@ import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'add_product_page.dart';
+import 'local_image_store.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -109,11 +109,18 @@ class _SettingsPageState extends State<SettingsPage> {
 
       setState(() => _isUploadingQris = true);
       try {
-        final ref = FirebaseStorage.instance.ref().child(
-          'business/$_uid/qris.jpg',
+        final url = await LocalImageStore.instance.saveImageCopy(
+          sourceFile: File(image.path),
+          ownerId: _uid,
+          recordType: 'business',
+          recordId: 'qris',
+          filePrefix: 'qris',
         );
-        await ref.putFile(File(image.path));
-        final url = await ref.getDownloadURL();
+
+        if (url == null || url.isEmpty) {
+          _showMessage('Gagal menyimpan QRIS lokal. Coba lagi.');
+          return;
+        }
 
         await _userRef.set({
           'qrisEnabled': true,
@@ -915,10 +922,10 @@ class _QrisCard extends StatelessWidget {
               child: Container(
                 color: const Color(0xFFF1F4F2),
                 child: hasQris
-                    ? Image.network(
+                    ? buildStoredImage(
                         qrisImageUrl,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(
+                        fallback: () => const Icon(
                           Icons.qr_code_2,
                           color: Color(0xFF126C55),
                           size: 64,
@@ -1131,21 +1138,15 @@ class _ProductCard extends StatelessWidget {
               child: Container(
                 color: const Color(0xFFF1F4F2),
                 width: double.infinity,
-                child: product.imageUrl.isNotEmpty
-                    ? Image.network(
-                        product.imageUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Icon(
-                          productIcon,
-                          size: 36,
-                          color: const Color(0xFF8AA39A),
-                        ),
-                      )
-                    : Icon(
-                        productIcon,
-                        size: 36,
-                        color: const Color(0xFF8AA39A),
-                      ),
+                child: buildStoredImage(
+                  product.imageUrl,
+                  fit: BoxFit.cover,
+                  fallback: () => Icon(
+                    productIcon,
+                    size: 36,
+                    color: const Color(0xFF8AA39A),
+                  ),
+                ),
               ),
             ),
           ),

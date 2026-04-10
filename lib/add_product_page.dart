@@ -2,10 +2,11 @@ import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+
+import 'local_image_store.dart';
 
 class AddProductPage extends StatefulWidget {
   const AddProductPage({
@@ -334,14 +335,6 @@ class _AddProductPageState extends State<AddProductPage> {
     setState(() => _isSaving = true);
 
     try {
-      String? imageUrl;
-      if (_selectedImage != null) {
-        imageUrl = await _uploadProductImageToStorage(
-          imageFile: _selectedImage!,
-          userId: user.uid,
-        );
-      }
-
       final cleanedTags = normalizedTags;
 
       final iconName = _getProductIconName(_selectedIcon);
@@ -352,6 +345,15 @@ class _AddProductPageState extends State<AddProductPage> {
       final docRef = _isEditMode
           ? productsRef.doc(widget.productId!.trim())
           : productsRef.doc();
+
+      String? imageUrl = _existingImageUrl;
+      if (_selectedImage != null) {
+        imageUrl = await _saveProductImageLocally(
+          imageFile: _selectedImage!,
+          userId: user.uid,
+          recordId: docRef.id,
+        );
+      }
 
       final payload = <String, dynamic>{
         'id': docRef.id,
@@ -422,25 +424,18 @@ class _AddProductPageState extends State<AddProductPage> {
     }
   }
 
-  Future<String?> _uploadProductImageToStorage({
+  Future<String?> _saveProductImageLocally({
     required File imageFile,
     required String userId,
+    required String recordId,
   }) async {
-    try {
-      final fileName =
-          '${widget.categoryId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final ref = FirebaseStorage.instance.ref().child(
-        'products/$userId/$fileName',
-      );
-
-      await ref.putFile(imageFile);
-      final url = await ref.getDownloadURL();
-      debugPrint('[PRODUCT_IMAGE_UPLOAD_OK] path=products/$userId/$fileName');
-      return url;
-    } catch (e) {
-      debugPrint('[PRODUCT_IMAGE_UPLOAD_ERROR] $e');
-      return null;
-    }
+    return LocalImageStore.instance.saveImageCopy(
+      sourceFile: imageFile,
+      ownerId: userId,
+      recordType: 'products',
+      recordId: recordId,
+      filePrefix: widget.categoryId,
+    );
   }
 
   void _showMessage(String message) {
@@ -620,10 +615,10 @@ class _AddProductPageState extends State<AddProductPage> {
                                           borderRadius: BorderRadius.circular(
                                             26,
                                           ),
-                                          child: Image.network(
+                                          child: buildStoredImage(
                                             _existingImageUrl!,
                                             fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) => Stack(
+                                            fallback: () => Stack(
                                               children: [
                                                 Positioned.fill(
                                                   child: DecoratedBox(

@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'order_summary_page.dart';
+import 'local_image_store.dart';
 
 IconData _getProductIconFromName(String name) {
   switch (name) {
@@ -391,134 +392,233 @@ class _HomePageState extends State<HomePage> {
                 slivers: [
                   SliverToBoxAdapter(
                     child: Container(
-                      color: Colors.white,
-                      padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
-                      child: SafeArea(
-                        bottom: false,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  'KASIRKU',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 3,
-                                    color: Color(0xFF206B55),
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topRight,
+                          end: Alignment.bottomLeft,
+                          colors: [Color(0xFFFFFFFF), Color(0xFFE8F2EE)],
+                        ),
+                      ),
+                      child: Stack(
+                        children: [
+                          Positioned(
+                            top: -60,
+                            right: -40,
+                            child: Container(
+                              width: 200,
+                              height: 200,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: const Color(
+                                  0xFF206B55,
+                                ).withOpacity(0.04),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 20,
+                            left: -80,
+                            child: Container(
+                              width: 160,
+                              height: 160,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: const Color(
+                                  0xFF206B55,
+                                ).withOpacity(0.06),
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+                            child: SafeArea(
+                              bottom: false,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text(
+                                        'KASIRKU',
+                                        style: TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 3,
+                                          color: Color(0xFF206B55),
+                                        ),
+                                      ),
+                                      CircleAvatar(
+                                        radius: 20,
+                                        backgroundColor: const Color(
+                                          0xFFE8F2EE,
+                                        ),
+                                        child: InkWell(
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                          onTap: _openProfileDrawer,
+                                          child: const SizedBox(
+                                            width: 40,
+                                            height: 40,
+                                            child: Icon(
+                                              Icons.people,
+                                              color: Color(0xFF206B55),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                                CircleAvatar(
-                                  radius: 20,
-                                  backgroundColor: const Color(0xFFE8F2EE),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(20),
-                                    onTap: _openProfileDrawer,
-                                    child: const SizedBox(
-                                      width: 40,
-                                      height: 40,
-                                      child: Icon(
-                                        Icons.people,
-                                        color: Color(0xFF206B55),
+                                  const SizedBox(height: 92),
+                                  const Center(
+                                    child: Text(
+                                      'TOTAL TAGIHAN',
+                                      style: TextStyle(
+                                        letterSpacing: 4,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: Color(0xFF525B58),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 92),
-                            const Center(
-                              child: Text(
-                                'TOTAL TAGIHAN',
-                                style: TextStyle(
-                                  letterSpacing: 4,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: Color(0xFF525B58),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Center(
-                              child: Text(
-                                'Rp ${_formatCurrency(totalAmount)}',
-                                style: const TextStyle(
-                                  fontSize: 52,
-                                  height: 1,
-                                  fontWeight: FontWeight.w800,
-                                  color: Color(0xFF2D6A4F),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-                            Center(
-                              child: Wrap(
-                                spacing: 12,
-                                runSpacing: 12,
-                                alignment: WrapAlignment.center,
-                                children: [
-                                  _BadgePill(
-                                    label: '${_selectedCount} Items Selected',
-                                    backgroundColor: const Color(0xFFF1F1F1),
-                                    textColor: const Color(0xFF3A3F3D),
+                                  const SizedBox(height: 10),
+                                  Center(
+                                    child: Text(
+                                      'Rp ${_formatCurrency(totalAmount)}',
+                                      style: const TextStyle(
+                                        fontSize: 52,
+                                        height: 1,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFF2D6A4F),
+                                      ),
+                                    ),
                                   ),
-                                  _BadgePill(
-                                    label: 'ORDER #$orderNumber',
-                                    backgroundColor: const Color(0xFFDDF5E6),
-                                    textColor: const Color(0xFF206B55),
-                                    bold: true,
-                                    uppercase: true,
+                                  const SizedBox(height: 24),
+                                  Center(
+                                    child: Wrap(
+                                      spacing: 12,
+                                      runSpacing: 12,
+                                      alignment: WrapAlignment.center,
+                                      children: [
+                                        _BadgePill(
+                                          label:
+                                              '${_selectedCount} Items Selected',
+                                          backgroundColor: const Color(
+                                            0xFFF1F1F1,
+                                          ),
+                                          textColor: const Color(0xFF3A3F3D),
+                                        ),
+                                        _BadgePill(
+                                          label: 'ORDER #$orderNumber',
+                                          backgroundColor: const Color(
+                                            0xFFDDF5E6,
+                                          ),
+                                          textColor: const Color(0xFF206B55),
+                                          bold: true,
+                                          uppercase: true,
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                   SliverToBoxAdapter(
-                    child: Transform.translate(
-                      offset: const Offset(0, -18),
+                    child: Container(
+                      color: const Color(
+                        0xFFE8F2EE,
+                      ), // Matching gradient bottom
                       child: Container(
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFF4F4F4),
-                          borderRadius: BorderRadius.vertical(
-                            top: Radius.circular(48),
+                        decoration: BoxDecoration(
+                          color: const Color(
+                            0xFFF6F8F7,
+                          ), // slightly lighter grey for list
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(40),
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF206B55).withOpacity(0.04),
+                              blurRadius: 16,
+                              offset: const Offset(0, -6),
+                            ),
+                          ],
                         ),
-                        padding: const EdgeInsets.only(top: 26, bottom: 240),
-                        child: Column(
+                        child: Stack(
                           children: [
-                            if (data.categories.isEmpty)
-                              const Padding(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 80,
-                                ),
-                                child: Text(
-                                  'Belum ada kategori atau produk.',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: Color(0xFF6B7471),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              )
-                            else
-                              ...data.categories.map(
-                                (category) => _CategorySection(
-                                  title: category.name,
-                                  items: category.items,
-                                  quantities: _quantities,
-                                  onAdd: _addItem,
-                                  onRemove: _removeItem,
-                                  icon: _iconFromName(category.iconName),
-                                  imageUrl: category.imageUrl,
+                            // Motifs for product section
+                            Positioned(
+                              top: 60,
+                              right: -30,
+                              child: Container(
+                                width: 150,
+                                height: 150,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(40),
+                                  color: const Color(
+                                    0xFF206B55,
+                                  ).withOpacity(0.015),
                                 ),
                               ),
+                            ),
+                            Positioned(
+                              bottom: 120,
+                              left: -50,
+                              child: Container(
+                                width: 120,
+                                height: 120,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(30),
+                                  color: const Color(
+                                    0xFF206B55,
+                                  ).withOpacity(0.015),
+                                ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                top: 26,
+                                bottom: 240,
+                              ),
+                              child: Column(
+                                children: [
+                                  if (data.categories.isEmpty)
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 24,
+                                        vertical: 80,
+                                      ),
+                                      child: Text(
+                                        'Belum ada kategori atau produk.',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: Color(0xFF6B7471),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    ...data.categories.map(
+                                      (category) => _CategorySection(
+                                        title: category.name,
+                                        items: category.items,
+                                        quantities: _quantities,
+                                        onAdd: _addItem,
+                                        onRemove: _removeItem,
+                                        icon: _iconFromName(category.iconName),
+                                        imageUrl: category.imageUrl,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -1031,7 +1131,7 @@ class _CategorySection extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           SizedBox(
-            height: 252,
+            height: 196,
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               scrollDirection: Axis.horizontal,
@@ -1059,10 +1159,10 @@ class _CategorySection extends StatelessWidget {
                                 width: 132,
                                 color: const Color(0xFFE4E8E6),
                                 child: (item.imageUrl.isNotEmpty)
-                                    ? Image.network(
+                                    ? buildStoredImage(
                                         item.imageUrl,
                                         fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => Center(
+                                        fallback: () => Center(
                                           child: Icon(
                                             _getProductIconFromName(
                                               item.iconName,

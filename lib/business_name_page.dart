@@ -2,12 +2,12 @@ import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'sales_category_page.dart';
+import 'local_image_store.dart';
 
 class BusinessNamePage extends StatefulWidget {
   const BusinessNamePage({super.key});
@@ -92,10 +92,17 @@ class _BusinessNamePageState extends State<BusinessNamePage> {
     try {
       String? qrisImageUrl = _hasQris ? _existingQrisImageUrl : null;
       if (_hasQris && _selectedQrisImage != null) {
-        qrisImageUrl = await _uploadQrisImageToStorage(
+        qrisImageUrl = await _saveQrisImageLocally(
           imageFile: _selectedQrisImage!,
           userId: user.uid,
         );
+        if (qrisImageUrl == null || qrisImageUrl.isEmpty) {
+          throw FirebaseException(
+            plugin: 'cloud_firestore',
+            code: 'data-verification-failed',
+            message: 'Gagal menyimpan gambar QRIS secara lokal.',
+          );
+        }
       }
 
       final userRef = FirebaseFirestore.instance
@@ -206,20 +213,17 @@ class _BusinessNamePageState extends State<BusinessNamePage> {
     });
   }
 
-  Future<String?> _uploadQrisImageToStorage({
+  Future<String?> _saveQrisImageLocally({
     required File imageFile,
     required String userId,
   }) async {
-    try {
-      final ref = FirebaseStorage.instance.ref().child(
-        'business/$userId/qris.jpg',
-      );
-      await ref.putFile(imageFile);
-      return await ref.getDownloadURL();
-    } catch (e) {
-      debugPrint('[QRIS_UPLOAD_ERROR] $e');
-      return null;
-    }
+    return LocalImageStore.instance.saveImageCopy(
+      sourceFile: imageFile,
+      ownerId: userId,
+      recordType: 'business',
+      recordId: 'qris',
+      filePrefix: 'qris',
+    );
   }
 
   @override
@@ -442,9 +446,17 @@ class _BusinessNamePageState extends State<BusinessNamePage> {
                                                                 BorderRadius.circular(
                                                                   26,
                                                                 ),
-                                                            child: Image.network(
+                                                            child: buildStoredImage(
                                                               _existingQrisImageUrl!,
                                                               fit: BoxFit.cover,
+                                                              fallback: () =>
+                                                                  const Icon(
+                                                                    Icons
+                                                                        .qr_code_2,
+                                                                    size: 54,
+                                                                    color:
+                                                                        primary,
+                                                                  ),
                                                             ),
                                                           )
                                                         : const Column(

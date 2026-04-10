@@ -4,10 +4,10 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 
 import 'add_product_page.dart';
-import 'home_page.dart';
+import 'main_dashboard.dart';
+import 'local_image_store.dart';
 
 class _CategoryItem {
   const _CategoryItem({
@@ -225,10 +225,29 @@ class _SalesCategoryPageState extends State<SalesCategoryPage> {
       });
 
       try {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user == null) {
+          if (modalContext.mounted) {
+            setModalState(() {
+              isSavingCategory = false;
+              errorText = 'Sesi login tidak ditemukan.';
+            });
+          }
+          return;
+        }
+
+        final categoriesRef = FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('categories');
+        final docId = categoriesRef.doc().id;
+
         final saved = await _saveCategoryToFirestore(
           normalized,
           selectedIcon,
           selectedImage,
+          docId,
+          user.uid,
         );
 
         if (saved != null) {
@@ -665,59 +684,45 @@ class _SalesCategoryPageState extends State<SalesCategoryPage> {
     }
   }
 
-  Future<String?> _uploadImageToStorage(
+  Future<String?> _saveCategoryImageLocally(
     File imageFile,
     String categoryName,
+    String categoryId,
+    String userId,
   ) async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return null;
-
-      final safeCategory = _safeStorageName(categoryName);
-      final fileName =
-          '${user.uid}_${safeCategory}_${DateTime.now().millisecondsSinceEpoch}.png';
-      final ref = FirebaseStorage.instance.ref().child('categories/$fileName');
-
-      await ref.putFile(imageFile);
-      final url = await ref.getDownloadURL();
-      debugPrint(
-        '[CATEGORY_IMAGE_UPLOAD_OK] path=categories/$fileName url=$url',
-      );
-      return url;
-    } on FirebaseException catch (e) {
-      debugPrint(
-        '[CATEGORY_IMAGE_UPLOAD_ERROR] code=${e.code} message=${e.message}',
-      );
-      return null;
-    } catch (e) {
-      debugPrint('[CATEGORY_IMAGE_UPLOAD_ERROR] $e');
-      return null;
-    }
+    return LocalImageStore.instance.saveImageCopy(
+      sourceFile: imageFile,
+      ownerId: userId,
+      recordType: 'categories',
+      recordId: categoryId,
+      filePrefix: _safeStorageName(categoryName),
+    );
   }
 
   Future<_CategoryItem?> _saveCategoryToFirestore(
     String categoryName,
     IconData selectedIcon,
     File? imageFile,
+    String docId,
+    String userId,
   ) async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        debugPrint('[CATEGORY_SAVE_ERROR] user is null');
-        return null;
-      }
-
       String? imageUrl;
       if (imageFile != null) {
-        imageUrl = await _uploadImageToStorage(imageFile, categoryName);
+        imageUrl = await _saveCategoryImageLocally(
+          imageFile,
+          categoryName,
+          docId,
+          userId,
+        );
       }
 
       final iconName = _getCategoryIconName(selectedIcon);
       final categoriesRef = FirebaseFirestore.instance
           .collection('users')
-          .doc(user.uid)
+          .doc(userId)
           .collection('categories');
-      final docRef = categoriesRef.doc();
+      final docRef = categoriesRef.doc(docId);
       final payload = <String, dynamic>{
         'id': docRef.id,
         'name': categoryName,
@@ -728,7 +733,7 @@ class _SalesCategoryPageState extends State<SalesCategoryPage> {
       };
 
       debugPrint(
-        '[CATEGORY_SAVE_ATTEMPT] uid=${user.uid} data={name: $categoryName, icon: $iconName, imageUrl: $imageUrl}',
+        '[CATEGORY_SAVE_ATTEMPT] uid=$userId data={name: $categoryName, icon: $iconName, imageUrl: $imageUrl}',
       );
 
       await docRef.set(payload, SetOptions(merge: true));
@@ -768,10 +773,10 @@ class _SalesCategoryPageState extends State<SalesCategoryPage> {
 
   Widget _buildCategoryThumbnail(_CategoryItem category) {
     if (category.imageUrl != null && category.imageUrl!.isNotEmpty) {
-      return Image.network(
+      return buildStoredImage(
         category.imageUrl!,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _buildCategoryFallback(category),
+        fallback: () => _buildCategoryFallback(category),
       );
     }
     return _buildCategoryFallback(category);
@@ -980,7 +985,7 @@ class _SalesCategoryPageState extends State<SalesCategoryPage> {
 
   void _goNext() {
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute<void>(builder: (_) => const HomePage()),
+      MaterialPageRoute<void>(builder: (_) => const MainDashboard()),
       (_) => false,
     );
   }
@@ -1181,32 +1186,19 @@ class _SalesCategoryPageState extends State<SalesCategoryPage> {
                 width: 70,
                 height: 70,
                 decoration: const BoxDecoration(color: Color(0xFFF1F4F2)),
-                child: (product['imageUrl'] as String?)?.isNotEmpty == true
-                    ? Image.network(
-                        product['imageUrl'],
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) {
-                          final iconData = _getProductIconFromName(
-                            product['icon'] as String? ?? 'fastfood',
-                          );
-                          return Center(
-                            child: Icon(
-                              iconData,
-                              size: 32,
-                              color: const Color(0xFF4D8070),
-                            ),
-                          );
-                        },
-                      )
-                    : Center(
-                        child: Icon(
-                          _getProductIconFromName(
-                            product['icon'] as String? ?? 'fastfood',
-                          ),
-                          size: 32,
-                          color: const Color(0xFF4D8070),
-                        ),
+                child: buildStoredImage(
+                  (product['imageUrl'] as String?) ?? '',
+                  fit: BoxFit.cover,
+                  fallback: () => Center(
+                    child: Icon(
+                      _getProductIconFromName(
+                        product['icon'] as String? ?? 'fastfood',
                       ),
+                      size: 32,
+                      color: const Color(0xFF4D8070),
+                    ),
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 12),

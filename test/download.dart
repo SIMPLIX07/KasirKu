@@ -1,0 +1,1 @@
+import 'dart:io';main() async { var request = await HttpClient().getUrl(Uri.parse('https://upload.wikimedia.org/wikipedia/commons/thumb/c/cf/Cash_register_icon.svg/512px-Cash_register_icon.svg.png')); var response = await request.close(); await response.pipe(File('assets/icon.png').openWrite()); }

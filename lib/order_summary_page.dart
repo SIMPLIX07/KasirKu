@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'transaction_success_page.dart';
+import 'local_image_store.dart';
 
 class _BusinessPaymentConfig {
   const _BusinessPaymentConfig({
@@ -199,32 +200,30 @@ class OrderSummaryPage extends StatelessWidget {
                               ),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(20),
-                                child: config.qrisImageUrl.isNotEmpty
-                                    ? Image.network(
-                                        config.qrisImageUrl,
-                                        fit: BoxFit.cover,
-                                      )
-                                    : const Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.qr_code_2,
-                                            size: 120,
-                                            color: Color(0xFF126C55),
-                                          ),
-                                          SizedBox(height: 8),
-                                          Text(
-                                            'QRIS',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                              letterSpacing: 1.4,
-                                              color: Color(0xFF5F6865),
-                                            ),
-                                          ),
-                                        ],
+                                child: buildStoredImage(
+                                  config.qrisImageUrl,
+                                  fit: BoxFit.cover,
+                                  fallback: () => const Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.qr_code_2,
+                                        size: 120,
+                                        color: Color(0xFF126C55),
                                       ),
+                                      SizedBox(height: 8),
+                                      Text(
+                                        'QRIS',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 1.4,
+                                          color: Color(0xFF5F6865),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ),
                             const SizedBox(height: 14),
@@ -512,21 +511,13 @@ class OrderSummaryPage extends StatelessWidget {
                             child: paymentCard(
                               keyName: 'qris',
                               label: 'QRIS',
-                              visual: config.qrisImageUrl.isNotEmpty
-                                  ? ClipRRect(
-                                      borderRadius: BorderRadius.circular(30),
-                                      child: Image.network(
-                                        config.qrisImageUrl,
-                                        width: 118,
-                                        height: 118,
-                                        fit: BoxFit.cover,
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.qr_code_2,
-                                      size: 58,
-                                      color: Color(0xFF25302E),
-                                    ),
+                              visual: Icon(
+                                Icons.qr_code_2,
+                                size: 58,
+                                color: selectedMethod == 'qris'
+                                    ? const Color(0xFFE5FFF4)
+                                    : const Color(0xFF25302E),
+                              ),
                             ),
                           ),
                           const SizedBox(width: 14),
@@ -672,229 +663,216 @@ class OrderSummaryPage extends StatelessWidget {
 
         return Scaffold(
           backgroundColor: const Color(0xFFFFFFFF),
-          body: Stack(
-            children: [
-              SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 48, 24, 180),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'KASIRKU',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF126C55),
-                      ),
-                    ),
-                    const SizedBox(height: 72),
-                    const Text(
-                      'Ringkasan\nPesanan',
-                      style: TextStyle(
-                        fontSize: 68,
-                        fontWeight: FontWeight.w800,
-                        height: 0.95,
-                        color: Color(0xFF1F2827),
-                        letterSpacing: -1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      'TRANSAKSI #$transactionId',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 1,
-                        color: Color(0xFF9AA09E),
-                      ),
-                    ),
-                    const SizedBox(height: 56),
-                    ...items.map(
-                      (item) => Padding(
-                        padding: const EdgeInsets.only(bottom: 34),
-                        child: Row(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: Container(
-                                width: 76,
-                                height: 76,
-                                color: const Color(0xFFECEFF0),
-                                child: (item.imageUrl ?? '').isNotEmpty
-                                    ? Image.network(
-                                        item.imageUrl!,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) =>
-                                            const Icon(
-                                              Icons.fastfood,
-                                              size: 36,
-                                              color: Color(0xFF8AA39A),
-                                            ),
-                                      )
-                                    : const Icon(
-                                        Icons.fastfood,
-                                        size: 36,
-                                        color: Color(0xFF8AA39A),
-                                      ),
-                              ),
-                            ),
-                            const SizedBox(width: 18),
-                            Expanded(
-                              child: Text(
-                                item.name,
-                                style: const TextStyle(
-                                  fontSize: 30,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF1F2827),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  'Rp ${_formatCurrency(item.price)}',
-                                  style: const TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF1F2827),
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'x${item.quantity}',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    color: Color(0xFF6F7775),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Divider(color: Color(0xFFDCE2E0), thickness: 1),
-                    const SizedBox(height: 24),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Subtotal',
-                          style: TextStyle(
-                            fontSize: 20,
-                            color: Color(0xFF59615F),
-                          ),
-                        ),
-                        Text(
-                          'Rp ${_formatCurrency(_subtotal)}',
-                          style: const TextStyle(
-                            fontSize: 20,
-                            color: Color(0xFF59615F),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    const Divider(color: Color(0xFFDCE2E0), thickness: 1),
-                    const SizedBox(height: 18),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Total',
-                          style: TextStyle(
-                            fontSize: 30,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF1F2827),
-                          ),
-                        ),
-                        Text(
-                          'Rp ${_formatCurrency(_subtotal)}',
-                          style: const TextStyle(
-                            fontSize: 42,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1F2827),
-                            letterSpacing: -0.8,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFFFFFFF),
-                    border: Border(top: BorderSide(color: Color(0xFFDCE2E0))),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 48, 24, 48),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'KASIRKU',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF126C55),
                   ),
-                  child: SafeArea(
-                    top: false,
+                ),
+                const SizedBox(height: 32),
+                const Text(
+                  'Ringkasan\nPesanan',
+                  style: TextStyle(
+                    fontSize: 42,
+                    fontWeight: FontWeight.w800,
+                    height: 1.1,
+                    color: Color(0xFF1F2827),
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'TRANSAKSI #$transactionId',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.5,
+                    color: Color(0xFF9AA09E),
+                  ),
+                ),
+                const SizedBox(height: 32),
+                ...items.map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 24),
                     child: Row(
                       children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(
-                                color: Color(0xFF126C55),
-                                width: 2,
-                              ),
-                              minimumSize: const Size(0, 56),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                            ),
-                            child: const Text(
-                              'Edit Pesanan',
-                              style: TextStyle(
-                                color: Color(0xFF126C55),
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            width: 64,
+                            height: 64,
+                            color: const Color(0xFFECEFF0),
+                            child: buildStoredImage(
+                              item.imageUrl ?? '',
+                              fit: BoxFit.cover,
+                              fallback: () => const Icon(
+                                Icons.fastfood,
+                                size: 28,
+                                color: Color(0xFF8AA39A),
                               ),
                             ),
                           ),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
-                          child: ElevatedButton(
-                            onPressed: () => _showPaymentSheet(context, config),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF126C55),
-                              minimumSize: const Size(0, 56),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                            ),
-                            child: const FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(
-                                'Bayar Sekarang',
-                                maxLines: 1,
-                                softWrap: false,
-                                overflow: TextOverflow.visible,
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
+                          child: Text(
+                            item.name,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF1F2827),
                             ),
                           ),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              'Rp ${_formatCurrency(item.price)}',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF1F2827),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'x${item.quantity}',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                color: Color(0xFF6F7775),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
                 ),
+                const SizedBox(height: 12),
+                const Divider(color: Color(0xFFDCE2E0), thickness: 1),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Subtotal',
+                      style: TextStyle(fontSize: 14, color: Color(0xFF59615F)),
+                    ),
+                    Text(
+                      'Rp ${_formatCurrency(_subtotal)}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF59615F),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Divider(color: Color(0xFFDCE2E0), thickness: 1),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Total',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1F2827),
+                      ),
+                    ),
+                    Text(
+                      'Rp ${_formatCurrency(_subtotal)}',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1F2827),
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          bottomNavigationBar: Container(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+            decoration: const BoxDecoration(
+              color: Color(0xFFFFFFFF),
+              border: Border(top: BorderSide(color: Color(0xFFDCE2E0))),
+            ),
+            child: SafeArea(
+              top: false,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(
+                          color: Color(0xFF126C55),
+                          width: 2,
+                        ),
+                        minimumSize: const Size(0, 56),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                      child: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          'Edit Pesanan',
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.visible,
+                          style: TextStyle(
+                            color: Color(0xFF126C55),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => _showPaymentSheet(context, config),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF126C55),
+                        minimumSize: const Size(0, 56),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                      child: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          'Bayar Sekarang',
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.visible,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         );
       },
